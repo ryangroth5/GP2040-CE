@@ -31,6 +31,7 @@
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
 #include "addons/tg16_input.h"
+#include "addons/usbwatchdog.h"
 
 // Pico includes
 #include "pico/bootrom.h"
@@ -125,6 +126,10 @@ void GP2040::setup() {
 	addons.LoadAddon(new ReverseInput());
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
 	addons.LoadAddon(new InputMacro());
+
+	// USB liveness recorder + watchdog: records and recovers a silently-wedged
+	// XInput IN endpoint (device-side stall). Self-contained; gated off by default.
+	addons.LoadAddon(new USBWatchdogAddon());
 
 	InputMode inputMode = gamepad->getOptions().inputMode;
 	const BootAction bootAction = getBootAction();

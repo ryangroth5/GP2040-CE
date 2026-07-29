@@ -12,6 +12,8 @@
 #include "types.h"
 #include "version.h"
 
+#include "addons/usbwatchdog.h"    // USB_WATCHDOG_WEBAPI + usbWatchdogGetPersist()
+
 #include <cstring>
 #include <string>
 #include <vector>
@@ -2433,6 +2435,49 @@ std::string getMemoryReport()
     return serialize_json(doc);
 }
 
+#if USB_WATCHDOG_WEBAPI
+// Read-only dump of the USB watchdog's reboot-surviving failure recorder.
+std::string getUSBDiagnostics()
+{
+    const USBWatchdogPersist& p = usbWatchdogGetPersist();
+    const size_t capacity = JSON_OBJECT_SIZE(12)
+                          + JSON_ARRAY_SIZE(USB_WATCHDOG_RING)
+                          + USB_WATCHDOG_RING * JSON_OBJECT_SIZE(15);
+    DynamicJsonDocument doc(capacity);
+
+    writeDoc(doc, "valid", p.magic == 0x55574431u ? 1 : 0);
+    writeDoc(doc, "bootCount", p.bootCount);
+    writeDoc(doc, "coldBootCount", p.coldBootCount);
+    writeDoc(doc, "stallCount", p.stallCount);
+    writeDoc(doc, "reenumCount", p.reenumCount);
+    writeDoc(doc, "rebootCount", p.rebootCount);
+    writeDoc(doc, "lastStallUptimeMs", p.lastStallUptimeMs);
+    writeDoc(doc, "eventCount", p.count);
+
+    // Emit stored events oldest-first.
+    uint32_t n = p.count;
+    uint32_t idx = (p.head + USB_WATCHDOG_RING - n) % USB_WATCHDOG_RING;
+    for (uint32_t i = 0; i < n; i++) {
+        const USBWatchdogEvent& e = p.ring[idx];
+        writeDoc(doc, "events", i, "uptimeMs", e.uptimeMs);
+        writeDoc(doc, "events", i, "stuckMs", e.stuckMs);
+        writeDoc(doc, "events", i, "msSinceDelivery", e.msSinceDelivery);
+        writeDoc(doc, "events", i, "sieStatus", e.sieStatus);
+        writeDoc(doc, "events", i, "bufStatus", e.bufStatus);
+        writeDoc(doc, "events", i, "ep1InBufCtrl", e.ep1InBufCtrl);
+        writeDoc(doc, "events", i, "ints", e.ints);
+        writeDoc(doc, "events", i, "inte", e.inte);
+        writeDoc(doc, "events", i, "sofFirst", e.sofFirst);
+        writeDoc(doc, "events", i, "sofSecond", e.sofSecond);
+        writeDoc(doc, "events", i, "suspendTransitions", e.suspendTransitions);
+        writeDoc(doc, "events", i, "action", e.action);
+        writeDoc(doc, "events", i, "flags", e.flags);
+        idx = (idx + 1) % USB_WATCHDOG_RING;
+    }
+    return serialize_json(doc);
+}
+#endif // USB_WATCHDOG_WEBAPI
+
 static bool _abortGetHeldPins = false;
 
 std::string getHeldPins()
@@ -2613,6 +2658,9 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getSplashImage", getSplashImage },
     { "/api/getFirmwareVersion", getFirmwareVersion },
     { "/api/getMemoryReport", getMemoryReport },
+#if USB_WATCHDOG_WEBAPI
+    { "/api/getUSBDiagnostics", getUSBDiagnostics },
+#endif
     { "/api/getHeldPins", getHeldPins },
     { "/api/abortGetHeldPins", abortGetHeldPins },
     { "/api/getUsedPins", getUsedPins },

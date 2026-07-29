@@ -106,4 +106,9 @@
 // Keyboard Host enabled by default
 #define KEYBOARD_HOST_ENABLED 1
 
+// USB liveness recorder + watchdog (investigation branch): records and recovers a
+// silently-wedged XInput IN endpoint. WEBAPI exposes /api/getUSBDiagnostics.
+#define USB_WATCHDOG_ENABLED 1
+#define USB_WATCHDOG_WEBAPI 1
+
 #endif
